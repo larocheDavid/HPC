@@ -67,7 +67,8 @@ int print_grid(double **U, int max_I, int max_J) {
 } 
 
 int main(int argc, char** argv) { 
-
+	(void)argc;
+	
     int max_I = atoi(argv[1]);
     int max_J = atoi(argv[2]);
     int max_T = atoi(argv[3]);
