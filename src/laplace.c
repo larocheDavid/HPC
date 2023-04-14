@@ -60,7 +60,6 @@ double** init_grid(int max_I, int max_J) {
     return U;
 }
 
-
 void init_grid(int max_I, int max_J, double U[max_I][max_J]) {
 
     for (int i=0; i<max_I; i++)
@@ -75,7 +74,6 @@ void init_grid(int max_I, int max_J, double U[max_I][max_J]) {
         U[max_I-1][j] = LAST_ROW;
     }
 }
-
 
 double* init_grid2(int max_I, int max_J) {
 
@@ -95,27 +93,6 @@ double* init_grid2(int max_I, int max_J) {
     return U;
 }*/
 
-
-int print_grid(double **U, int max_I, int max_J) {
-
-    FILE* fp = fopen("laplace.txt", "w");
-    if (fp == NULL) {
-        perror("fopen\n");
-        return 1;
-    }
-
-    for (int i=0; i<max_I; i++) {
-        for (int j=0; j < max_J; j++) {
-            printf("%.2f ", U[i][j]);
-            fprintf(fp, "%.2f ", U[i][j]);
-        }
-        printf("\n");
-        fprintf(fp, "\n");
-    }
-    fclose(fp);
-    printf("\n\n");
-    return 0;
-}
 /*
 void compute_grid(double **U, double **U_temp, int max_I, int max_J, int max_T, int myRank, int nProc, int myStart, int myEnd) {
 
@@ -156,6 +133,27 @@ void compute_grid(double **U, double **U_temp, int max_I, int max_J, int max_T, 
     }
     free(bottom_data);
 }*/
+
+int print_grid(double **U, int max_I, int max_J) {
+
+    FILE* fp = fopen("laplace.txt", "w");
+    if (fp == NULL) {
+        perror("fopen\n");
+        return 1;
+    }
+
+    for (int i=0; i<max_I; i++) {
+        for (int j=0; j < max_J; j++) {
+            printf("%.2f ", U[i][j]);
+            fprintf(fp, "%.2f ", U[i][j]);
+        }
+        printf("\n");
+        fprintf(fp, "\n");
+    }
+    fclose(fp);
+    printf("\n\n");
+    return 0;
+}
 
 void compute_grid(double **U, double **U_temp, int max_J, int max_T, int myRank, int nProc, int myStart, int myEnd) {
 
@@ -424,13 +422,14 @@ int main(int argc, char** argv) {
     int max_J = atoi(argv[2]); // colonnes
     int max_T = atoi(argv[3]); // temps discret
 
-    double* U = NULL;
+    double *U, *U_res = NULL;
     int band_size[nProc];
     int sendcounts[nProc];
     int displs[nProc];
 
     if(myRank == ROOT) { // Root create grid
         U = calloc(max_I*max_J, sizeof(double));
+        U_res = calloc(max_I*max_J, sizeof(double));
         init_test(U, max_I, max_J);
         //grid_evol(U, max_I, max_J, max_T);
         print_band(U, max_I, max_J);
@@ -463,16 +462,16 @@ int main(int argc, char** argv) {
     }
     else {
         MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        print_band(recv_band, band_size, max_J);
+        print_band(recv_band, band_size[myRank], max_J);
         printf("\n");
         print_band(recv_top_row, 1, max_J);
         //MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
     }
-    
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Gather(recv_band, sendcounts[myRank], MPI_DOUBLE, U_res, sendcounts, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
 
-    if (myRank == ROOT) {
+    if(myRank == ROOT) {
+        print_band(U_res, max_I, max_J);
         free(U);
         free(recv_band);
     }
