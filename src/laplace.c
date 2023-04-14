@@ -11,7 +11,7 @@
 
 #define ROOT 0
 
-double* init_temp(double* U, int max_I, int max_J) {
+void init_temp(double* U, int max_I, int max_J) {
         
     for (int i=0; i<max_I; i++)
     {
@@ -24,8 +24,18 @@ double* init_temp(double* U, int max_I, int max_J) {
         U[j] = FIRST_ROW;
         U[max_I*(max_J-1)+j] = LAST_ROW;
     }
-    return U;
 }
+
+void init_test(double* U, int max_I, int max_J) {
+    
+    for (int i=0; i<max_I; i++)
+    {
+        for (int j=0; j<max_J; j++)
+        {
+            U[i*max_J+j] = i;
+        }
+    }
+}   
 
 /*
 double** init_grid(int max_I, int max_J) {
@@ -308,8 +318,6 @@ void band_evol(double* U, int max_I, int max_J) {
     free(U_temp);
 }
 
-
-
 void get_band_sz(int* band_sz, int nProc, int size) {
     int q = size/nProc;
     int rem = size%nProc;
@@ -338,40 +346,47 @@ void compute_scatterv_params(int *band_size, int *sendcounts, int* displ, int nP
         if (rank == ROOT) {
             displ[ROOT] = 0;
         }
-        else displ[rank] = displ[rank-1] + sendcounts[rank-1] -max_J*2;
-    }    
-  }
+        else displ[rank] = displ[rank-1] + sendcounts[rank-1] -max_J * 2;
+    }
+}
 
-void send_rows(double* band, int *displs, int nProc, int band_size, int myRank, int max_I, int max_J, int max_T) {
+void update_row(double *old_row, double *new_row, int max_J) {
+    for (int i=0; i<max_J; i++)
+        old_row[i] = new_row[i];
+}
 
-    // names relatives to process
-    double *send_top_row = band +  max_J; 
-    double *send_bottom_row = band + (band_size -2) * max_J;
+void print_band(double* band, int nrows, int max_J) {
+    for (int i = 0; i<nrows; i++) {
+        for (int j=0; j<max_J; j++)
+            printf("%.0f ", band[i*max_J+j]);
 
-    double *recv_top_row = malloc(max_J* sizeof(double)); 
-    double *recv_bottom_row = malloc(max_J* sizeof(double));
-
-    double *row_buff = malloc(max_J* sizeof(double)); 
-    //int bottom_row_idx = displs[myRank] + (band_size -2) * max_J;
-    //int top_row_idx = displs[myRank] + max_J;
-
-    if (myRank == ROOT) {
-        row_buff = band;// +  max_J;
-
-        for (int j = 0; j < max_J; j++) {
-            printf("%.1f ", row_buff+j);
-        }
-        printf("\n");
-
-        MPI_Send(row_buff, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
-    } else {
-        MPI_Recv(row_buff, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        for (int j = 0; j < max_J; j++) {
-            printf("%.1f ", row_buff+j);
-        }
         printf("\n");
     }
+    printf("\n");
+}
 
+void send_rows(double* band, int nProc, int band_size, int myRank, int max_J) {
+
+    // names relatives to process
+    double *send_top_row = band +  max_J;
+    double *recv_top_row = malloc(max_J* sizeof(double)); 
+
+    double *send_bottom_row = band + (band_size -2) * max_J;
+    double *recv_bottom_row = malloc(max_J* sizeof(double));
+
+    if (myRank == ROOT) {
+        MPI_Send(send_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
+        //MPI_Recv(recv_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    else {
+        MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        print_band(band, band_size, max_J);
+        printf("\n");
+        print_band(recv_top_row, 1, max_J);
+       
+        //MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
+    }
+    
     /*if (myRank%2 == 0 && nProc > 1) {
 
         if (myRank == ROOT) {
@@ -403,8 +418,8 @@ int main(int argc, char** argv) {
   
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-    MPI_Comm_size(MPI_COMM_WORLD, &nProc);
-	
+    MPI_Comm_size(MPI_COMM_WORLD, &nProc);    
+    
     int max_I = atoi(argv[1]); // lignes
     int max_J = atoi(argv[2]); // colonnes
     int max_T = atoi(argv[3]); // temps discret
@@ -416,17 +431,9 @@ int main(int argc, char** argv) {
 
     if(myRank == ROOT) { // Root create grid
         U = calloc(max_I*max_J, sizeof(double));
-        init_temp(U, max_I, max_J);
-        grid_evol(U, max_I, max_J, max_T);
-        //print_grid(U, max_I, max_J);
-
-        for (int i = 0; i<max_I; i++) {
-            for (int j=0; j<max_J; j++)
-                printf("%.2f ", U[i*max_J+j]);
-
-            printf("\n");
-        }
-        printf("\n");
+        init_test(U, max_I, max_J);
+        //grid_evol(U, max_I, max_J, max_T);
+        print_band(U, max_I, max_J);
     }
     
     get_band_sz(band_size, nProc, max_I);
@@ -441,25 +448,30 @@ int main(int argc, char** argv) {
 
     //band_evol(recv_band, band_size[myRank], max_J);
     MPI_Barrier(MPI_COMM_WORLD);
-    if (myRank == 0) {
-            for (int j=0; j<max_J; j++)
-                printf("%.2f ", recv_band[j]);
 
-        printf("\n");
+    //send_rows(recv_band, nProc, band_size[myRank], myRank, max_J);
+
+    double *send_top_row = recv_band +  max_J;
+    double *recv_top_row = malloc(max_J* sizeof(double)); 
+
+    double *send_bottom_row = recv_band + (band_size[myRank] -2) * max_J;
+    double *recv_bottom_row = malloc(max_J* sizeof(double));
+
+    if (myRank == ROOT) {
+        MPI_Send(send_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
+        //MPI_Recv(recv_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
-
-    send_rows(recv_band, displs, nProc, band_size, myRank, max_I, max_J, max_T);
+    else {
+        MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        print_band(recv_band, band_size, max_J);
+        printf("\n");
+        print_band(recv_top_row, 1, max_J);
+        //MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
+    }
+    
 
     MPI_Barrier(MPI_COMM_WORLD);
-    /*if (myRank == 1) {
-        for (int i = 0; i<band_size[myRank]; i++) {
-            for (int j=0; j<max_J; j++)
-                printf("%.2f ", recv_band[i*max_J+j]);
 
-            printf("\n");
-            }
-        printf("\n");
-    }*/
     if (myRank == ROOT) {
         free(U);
         free(recv_band);
