@@ -11,10 +11,7 @@
 
 #define ROOT 0
 
-// intialise U et assigne les valeurs aux bords
 double* init_temp(double* U, int max_I, int max_J) {
-
-    //double* U = calloc(max_I*max_J, sizeof(double));
         
     for (int i=0; i<max_I; i++)
     {
@@ -29,6 +26,7 @@ double* init_temp(double* U, int max_I, int max_J) {
     }
     return U;
 }
+
 /*
 double** init_grid(int max_I, int max_J) {
 
@@ -255,7 +253,7 @@ void grid_evol2(double **U, double** U_temp, int myStart, int myEnd, int max_J, 
     free(U_temp);
 }
 */
-
+/*
 void compute_band(double **band, double** band_temp, int band_size, int max_J, int max_T) {
 
     for (int t=0; t<max_T; t++) 
@@ -272,20 +270,62 @@ void compute_band(double **band, double** band_temp, int band_size, int max_J, i
     }
 }
 
+void compute_band(double* band, int band_size, int max_J) {
+
+    double* band_temp = malloc(band_size*max_J *sizeof(double));
+
+    for (int i = 0; i < band_size; i++) {
+        for (int j = 1; j < max_J; j++) {
+            int index = i * max_J + j;
+            band_temp[index] = 0.25 * (band[(i - 1) * max_J + j] + band[(i + 1) * max_J + j] +
+                band[i * max_J + j - 1] + band[i * max_J + j + 1]);
+        }
+    }
+    for (int i = 0; i < band_size; i++) {
+        for (int j = 1; j < max_J; j++) {
+            int index = i * max_J + j;
+            band[index] = band_temp[index];
+        }
+    }
+}
+*/
+void band_evol(double* U, int max_I, int max_J) {
+    double* U_temp = (double*) malloc(max_I * max_J * sizeof(double));
+
+    for (int i = 1; i < max_I - 1; i++) {
+        for (int j = 1; j < max_J - 1; j++) {
+            int index = i * max_J + j;
+            U_temp[index] = 0.25 * (U[(i - 1) * max_J + j] + U[(i + 1) * max_J + j] +
+                U[i * max_J + j - 1] + U[i * max_J + j + 1]);
+        }
+    }
+    for (int i = 1; i < max_I - 1; i++) {
+        for (int j = 1; j < max_J - 1; j++) {
+                int index = i * max_J + j;
+                U[index] = U_temp[index];
+            }
+    }
+    free(U_temp);
+}
+
+
+
 void get_band_sz(int* band_sz, int nProc, int size) {
     int q = size/nProc;
     int rem = size%nProc;
 
     for (int rank = 0; rank < nProc; rank++) {
 
+        if(nProc == 1) {
             band_sz[rank] = q;
-            
-            /*if (rank == ROOT || rank == nProc-1) {// add 1 row for processes on edge's domain otherwise 2
-                band_sz[rank] += 1; 
-            }
-            else  band_sz[rank] += 2;*/
-            if (rank < rem) // Distribute remaining rows to process if can't divide
-                band_sz[rank] += 1;
+        }
+        else if ((rank == ROOT || rank == nProc-1)) {// add 1 row for processes on edge's domain otherwise 2
+            band_sz[rank] = q + 1; 
+        }
+        else  band_sz[rank] = q + 2;
+
+        if (rank < rem) // Distribute remaining rows to process if can't divide
+            band_sz[rank] += 1;
     }
 }
 
@@ -298,10 +338,63 @@ void compute_scatterv_params(int *band_size, int *sendcounts, int* displ, int nP
         if (rank == ROOT) {
             displ[ROOT] = 0;
         }
-        else displ[rank] = displ[rank-1] + sendcounts[rank-1];
+        else displ[rank] = displ[rank-1] + sendcounts[rank-1] -max_J*2;
     }    
   }
 
+void send_rows(double* band, int *displs, int nProc, int band_size, int myRank, int max_I, int max_J, int max_T) {
+
+    // names relatives to process
+    double *send_top_row = band +  max_J; 
+    double *send_bottom_row = band + (band_size -2) * max_J;
+
+    double *recv_top_row = malloc(max_J* sizeof(double)); 
+    double *recv_bottom_row = malloc(max_J* sizeof(double));
+
+    double *row_buff = malloc(max_J* sizeof(double)); 
+    //int bottom_row_idx = displs[myRank] + (band_size -2) * max_J;
+    //int top_row_idx = displs[myRank] + max_J;
+
+    if (myRank == ROOT) {
+        row_buff = band;// +  max_J;
+
+        for (int j = 0; j < max_J; j++) {
+            printf("%.1f ", row_buff+j);
+        }
+        printf("\n");
+
+        MPI_Send(row_buff, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
+    } else {
+        MPI_Recv(row_buff, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        for (int j = 0; j < max_J; j++) {
+            printf("%.1f ", row_buff+j);
+        }
+        printf("\n");
+    }
+
+    /*if (myRank%2 == 0 && nProc > 1) {
+
+        if (myRank == ROOT) {
+            MPI_Send(band + bottom_row_idx, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
+            MPI_Recv(bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+        if (myRank == nProc-1) {
+            MPI_Send(band + displs[myRank], max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
+            MPI_Recv(bottom_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    } else 
+    {
+        if (myRank == ROOT) {
+            MPI_Recv(bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(band + bottom_row_idx, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
+        }
+        if (myRank == nProc-1) {
+            MPI_Recv(bottom_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(band + displs[myRank], max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
+
+            }
+    }*/
+}
 
 int main(int argc, char** argv) {
 	(void)argc;
@@ -341,12 +434,24 @@ int main(int argc, char** argv) {
     
     MPI_Barrier(MPI_COMM_WORLD);
     double* recv_band = malloc(sendcounts[myRank]* sizeof(double));
-    for (int i=0; i<nProc; i++) { printf("rank %d, dsipl %d, band_size %d, sendcounts %d\n", i, displs[i], band_size[i], sendcounts[i]);}
-
+    //for (int i=0; i<nProc; i++) { printf("rank %d, dsipl %d, band_size %d, sendcounts %d\n", i, displs[i], band_size[i], sendcounts[i]);}
+    
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Scatterv(U, sendcounts, displs, MPI_DOUBLE, recv_band, sendcounts[myRank], MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
 
+    //band_evol(recv_band, band_size[myRank], max_J);
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (myRank == 0) {
+            for (int j=0; j<max_J; j++)
+                printf("%.2f ", recv_band[j]);
+
+        printf("\n");
+    }
+
+    send_rows(recv_band, displs, nProc, band_size, myRank, max_I, max_J, max_T);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    /*if (myRank == 1) {
         for (int i = 0; i<band_size[myRank]; i++) {
             for (int j=0; j<max_J; j++)
                 printf("%.2f ", recv_band[i*max_J+j]);
@@ -354,144 +459,10 @@ int main(int argc, char** argv) {
             printf("\n");
             }
         printf("\n");
-    
-    
-    //print_grid(recv_band, band_size[myRank], max_J);
-    /*
-    for (int i = 0; i<band_size[myRank]; i++) {
-        for (int j=0; j<max_J; j++)
-            printf("%.2f ", recv_band[i][j]);
-
-        printf("\n");
-    }
-    printf("\n");
-    */
-    /*
-    for (int i = 0; i<band_size[myRank]; i++) {
-        for (int j=0; j<max_J; j++)
-            printf("%.2f ", recv_band[i*max_J+j]);
-
-        printf("\n");
-    }
-    printf("\n");*/
-
-
-    /*double** recv_band = (double**)malloc(band_size[myRank] * sizeof(double*));
-    
-    for (int i = 0; i < band_size[myRank]; i++)
-        recv_band[i] = (double*)malloc(max_J * sizeof(double));*/
-    
-    /*
-    double* recv_band = (double*)malloc(sendcounts[myRank] * sizeof(double));
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Scatterv(U, sendcounts, displs, MPI_DOUBLE, recv_band, sendcounts[myRank], MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-    //MPI_Scatterv(&(U[0][0]), sendcounts, displs, MPI_DOUBLE, &(recv_band[0][0]), sendcounts[myRank], MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-
-
-    for (int i = 0; i<max_I; i++) {
-        for (int j=0; j<max_J; j++)
-            printf("%.2f ", U[i*max_J+j]);
-
-        printf("\n");
-    }
-    printf("\n");
-
-    */
-    
-    /*
-    for (int i = 0; i<band_size[myRank]; i++) {scatterv Signal: Segmentation fault (11)  Signal code: Address not mapped (1) Failing at address: (nil)
-        for (int j=0; j<max_J; j++)
-            printf("%.2f ", recv_band[i][j]);
-
-        printf("\n");
     }*/
-    /*    
-    for (int i = 0; i<band_size[myRank]; i++) {
-        for (int j=0; j<max_J; j++)
-            printf("%.2f ", recv_band[i*max_J+j]);
-
-        printf("\n");
-    }*/
-
-
-    /*
-    int band_size = max_I / nProc; // Divide domain in bands of rows
-    if (nProc>1) {
-        if (myRank == ROOT || myRank == nProc-1) {// Remove 1 row for processes on edge's domain.
-            band_size += 1; recv_band
-        else  band_size += 2;
-    }
-    
-
-    int band_sz[nProc];
-    int rem = max_I % nProc;
-    for (int i=0; i<nProc; i++) {
-
-        band_sz[i] = max_I / nProc;
-        
-        if (nProc>1) {
-            if (myRank == ROOT || myRank == nProc-1) {// add 1 row for processes on edge's domain otherwise 2
-                band_sz[i] += 1; recv_band
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    for (int i=0; i<nProc && myRank == 0; i++)
-            printf("myRank %d, band_sz %d\n\n", myRank, band_sz[i]);
-
-    
-int error =  
-    int sendcounts[nProc];
-    int displs[nProc];
-
-    for (int i = 0; i < nProc; i++) { 
-        
-        sendcounts[i] = band_size * max_J;
-        displs[i] = i * (band_size -1) * max_J; // -1 for overlaping row on precedent band
-        scatterv Signal: Segmentation fault (11)  Signal code: Address not mapped (1) Failing at address: (nil)
-        MPI_Barrier(MPI_COMM_WORLD);
-        printf("myRank %d,", myRank);
-        printf(" sendcounts[i] %d,", sendcounts[i]);
-        printf(" band_size %d,", band_size);
-        printf(" displs[i] %d\n", displs[i]);
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-
-    double band[band_size][max_J];
-    //double* band = (double *)malloc(band_size * max_J * sizeof(double));
-    MPI_Scatterv(U, sendcounts, displs, MPI_DOUBLE, band, band_size * max_J, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-
-    double* band_temp[band_size][max_J];
-
-    //int myStart =  myRank * (band_size -1);
-    //int myEnd = myStart + band_size;
-
-    //grid_evol2(band, band_temp, myStart, myEnd, max_J, max_T);
-    //compute_grid(U, U_temp, max_I, max_J, max_T, myRank, nProc, displs[myRank], displs[myRank]+);
-    //compute_grid(U, U_temp, max_I, max_J, max_T, myRank, nProc, myStart, myEnd-1);
-    //printf("myrank is %d, band sz %d, myStart %d, myEnd %d\n", myRank, band_size, myStart, myEnd);
-
-    //clock_t start = clock();
-    //compute_grid(U, U_temp, max_I, max_J, max_T, myRank, nProc, myStart, myEnd);
-    //clock_t end = clock();
-
-    
-
     if (myRank == ROOT) {
         free(U);
-        free(U_temp);
-    }*/
-    //printf("Computing time %f[s]\n", ((double) (end - start)) / CLOCKS_PER_SEC);
-
-/*
-    if (myRank == 0) {
-        for (int i = 0; i < max_I; i++)
-            free(U[i]);
-        free(U);
+        free(recv_band);
     }
-    for (int i = 0; i < band_size[myRank]; i++)
-        free(recv_band[i]);
-
-    free(recv_band);*/
     MPI_Finalize();
 }
