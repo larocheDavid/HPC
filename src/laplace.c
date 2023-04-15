@@ -213,8 +213,8 @@ int main(int argc, char** argv) {
     if(myRank == ROOT) {
         //printf("Result\n");
         //print_mat(U, max_I, max_J);
-        //output_mat(U, max_I, max_J);
-        printf("%d %d %d %.2f\n", max_I, max_J, max_T, ((double) (end_time - start_time)) / CLOCKS_PER_SEC);
+        output_mat(U, max_I, max_J);
+        printf("%d %d %d %d %.2f\n", nProc, max_I, max_J, max_T, ((double) (end_time - start_time)) / CLOCKS_PER_SEC);
         free(U);
     }
     
