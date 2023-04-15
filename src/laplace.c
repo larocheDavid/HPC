@@ -28,36 +28,15 @@ void init_temp(double* U, int max_I, int max_J) {
 
 void init_grid_test(double* U, int max_I, int max_J) {
     
-    for (int i=0; i<max_I; i++)
-    {
+    for (int i=0; i<max_I; i++) {
         for (int j=0; j<max_J; j++)
             U[i*max_J+j] = i;
     }
 }
 
-int print_grid(double **U, int max_I, int max_J) {
-
-    FILE* fp = fopen("laplace.txt", "w");
-    if (fp == NULL) {
-        perror("fopen\n");
-        return 1;
-    }
-
-    for (int i=0; i<max_I; i++) {
-        for (int j=0; j < max_J; j++) {
-            printf("%.2f ", U[i][j]);
-            fprintf(fp, "%.2f ", U[i][j]);
-        }
-        printf("\n");
-        fprintf(fp, "\n");
-    }
-    fclose(fp);
-    printf("\n\n");
-    return 0;
-}
-
 void grid_evol(double* U, int max_I, int max_J, int max_T) {
     double* U_temp = (double*) malloc(max_I * max_J * sizeof(double));
+
     for (int t = 0; t < max_T; t++) {
         for (int i = 1; i < max_I - 1; i++) {
             for (int j = 1; j < max_J - 1; j++) {
@@ -126,11 +105,28 @@ void compute_scatterv_params(int *myRows, int *sendcounts, int* displ, int nProc
     }
 }
 
-void print_band(double* band, int rows, int cols) {
-    for (int i = 0; i<rows; i++) {
-        for (int j=0; j<cols; j++)
-            printf("%.2f ", band[i*cols+j]);
+void output_mat(double* mat, int rows, int cols) {
 
+    FILE* fp = fopen("laplace.txt", "w");
+
+    if (fp == NULL)
+        perror("fopen\n");
+
+    for (int i = 0; i<rows; i++) {
+        for (int j=0; j<cols; j++) {
+            fprintf(fp, "%.2f ", mat[i*cols+j]);
+        }
+        fprintf(fp, "\n");
+    }
+    fclose(fp);
+}
+
+void print_mat(double* mat, int rows, int cols) 
+{   
+    for (int i = 0; i<rows; i++) {
+        for (int j=0; j<cols; j++) {
+            printf("%.2f ", mat[i*cols+j]);
+        }
         printf("\n");
     }
     printf("\n");
@@ -163,7 +159,7 @@ int main(int argc, char** argv) {
         double *U_test = calloc(max_I*max_J, sizeof(double));
         init_temp(U_test, max_I, max_J);
         grid_evol(U_test, max_I, max_J, max_T);
-        print_band(U_test, max_I, max_J);
+        print_mat(U_test, max_I, max_J);
     }
     
     int myRows[nProc];
@@ -177,7 +173,6 @@ int main(int argc, char** argv) {
     double* myBand = malloc(sendcounts[myRank]* sizeof(double));
     
     MPI_Scatterv(U, sendcounts, displs, MPI_DOUBLE, myBand, sendcounts[myRank], MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
 
     double *send_top_row;
     double *send_bottom_row;
@@ -185,6 +180,7 @@ int main(int argc, char** argv) {
     double *recv_bottom_row = malloc(max_J* sizeof(double));
 
     for(int t=0; t<max_T; t++) {
+        MPI_Barrier(MPI_COMM_WORLD);
         band_evol(myBand, myRows[myRank], max_J);
         MPI_Barrier(MPI_COMM_WORLD);
         send_top_row = myBand + max_J;
@@ -215,14 +211,14 @@ int main(int argc, char** argv) {
                 update_row(myBand, recv_top_row, max_J);
             }
         }
-        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     MPI_Gatherv(myBand, sendcounts[myRank], MPI_DOUBLE, U_res, sendcounts, displs, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
     
     if(myRank == ROOT) {
         printf("RES\n");
-        print_band(U_res, max_I, max_J);
+        print_mat(U_res, max_I, max_J);
+        output_mat(U_res, max_I, max_J);
         free(U);
     }
     free(recv_top_row);
