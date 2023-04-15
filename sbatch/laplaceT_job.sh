@@ -5,6 +5,4 @@
 #SBATCH -p shared-cpu
 #SBATCH -t 00:60:00
 
-module load foss
-
 srun ./laplace.out 1000 1000 100000
