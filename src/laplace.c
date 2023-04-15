@@ -24,13 +24,13 @@ void init_temp(double* U, int max_I, int max_J) {
     for (int i=0; i<max_I; i++)
     {
         U[i*max_J] = FIRST_COL; 
-        U[(i+1)*max_J-1] = LAST_COL;
+        U[i*max_J + max_J-1] = LAST_COL;
     }
 
     for (int j=0; j<max_J; j++)
     {
         U[j] = FIRST_ROW;
-        U[max_I*(max_J-1)+j] = LAST_ROW;
+        U[max_J*(max_I-1)+j] = LAST_ROW;
     }
 }
 
@@ -132,6 +132,8 @@ int main(int argc, char** argv) {
 	(void)argc;
     
     int myRank, nProc;
+    //MPI_Request request;
+    MPI_Status status;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
@@ -140,13 +142,12 @@ int main(int argc, char** argv) {
     int max_I = atoi(argv[1]); // lignes
     int max_J = atoi(argv[2]); // colonnes
     int max_T = atoi(argv[3]); // temps discret
-
     double *U = NULL;
 
+    
     if(myRank == ROOT) { // Root create grid
         U = calloc(max_I*max_J, sizeof(double));
         init_temp(U, max_I, max_J);
-        //print_mat(U, max_I, max_J);
         //print_mat_ref(max_I, max_J, max_T);
     }
     
@@ -160,7 +161,7 @@ int main(int argc, char** argv) {
     double* myBand = malloc(sendcounts[myRank] * sizeof(double));
     
     MPI_Scatterv(U, sendcounts, displs, MPI_DOUBLE, myBand, sendcounts[myRank], MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-
+    
     double *send_top_row;
     double *send_bottom_row;
     double *recv_top_row = malloc(max_J* sizeof(double)); 
@@ -169,48 +170,54 @@ int main(int argc, char** argv) {
     clock_t start_time = clock();
     for(int t=0; t<max_T; t++) {
 
-        MPI_Barrier(MPI_COMM_WORLD);
-        mat_evol(myBand, myRows[myRank], max_J);
-        MPI_Barrier(MPI_COMM_WORLD);
+        mat_evol(myBand, myRows[myRank], max_J); // compute band from all processes before communication
+        
+        if (nProc > 1) {
 
-        send_top_row = myBand + max_J;
-        send_bottom_row = myBand + (myRows[myRank] -2) * max_J;
+            send_top_row = myBand + max_J;
+            send_bottom_row = myBand + (myRows[myRank] -2) * max_J;
 
-        if (myRank%2 == 0) {
-            if (myRank != nProc-1) {
-                MPI_Send(send_bottom_row, max_J, MPI_DOUBLE, myRank +1, 0, MPI_COMM_WORLD);
-                MPI_Recv(recv_bottom_row, max_J, MPI_DOUBLE, myRank +1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                update_row(myBand + (myRows[myRank] -1) * max_J, recv_bottom_row, max_J);
+            if (myRank%2 == 0) {
+                if (myRank != nProc-1) { // Send then receive bottom row
+                    MPI_Send(send_bottom_row, max_J, MPI_DOUBLE, myRank +1, 0, MPI_COMM_WORLD);
+                    MPI_Recv(recv_bottom_row, max_J, MPI_DOUBLE, myRank +1, 0, MPI_COMM_WORLD, &status);
+                    update_row(myBand + (myRows[myRank] -1) * max_J, recv_bottom_row, max_J);
+                }
+                if (myRank != ROOT) { // Send then receive top row
+                    MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank -1, 0, MPI_COMM_WORLD);
+                    MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank -1, 0, MPI_COMM_WORLD, &status);
+                    update_row(myBand, recv_top_row, max_J);
+                }
+            } else
+            {
+                if (myRank != nProc-1) { // Receive then send bottom row
+                    MPI_Recv(recv_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, &status);
+                    MPI_Send(send_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
+                    //MPI_Isend(send_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, &request);
+                    update_row(myBand + (myRows[myRank] -1) * max_J, recv_bottom_row, max_J);
+                }
+                if (myRank != ROOT) { // Receive then send top row
+                    MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, &status);
+                    MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
+                    //MPI_Isend(send_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, &request);    
+                    update_row(myBand, recv_top_row, max_J);
+                }
             }
-            if (myRank != ROOT) {
-                MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank -1, 0, MPI_COMM_WORLD);
-                MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank -1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                update_row(myBand, recv_top_row, max_J);
-            }
-        } else
-        {
-            if (myRank != nProc-1) {
-                MPI_Recv(recv_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Send(send_bottom_row, max_J, MPI_DOUBLE, myRank+1, 0, MPI_COMM_WORLD);
-                update_row(myBand + (myRows[myRank] -1) * max_J, recv_bottom_row, max_J);
-            }
-            if (myRank != ROOT) {
-                MPI_Recv(recv_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Send(send_top_row, max_J, MPI_DOUBLE, myRank-1, 0, MPI_COMM_WORLD);
-                update_row(myBand, recv_top_row, max_J);
-            }
+            MPI_Barrier(MPI_COMM_WORLD);
         }
     }
     clock_t end_time = clock();
+
     MPI_Gatherv(myBand, sendcounts[myRank], MPI_DOUBLE, U, sendcounts, displs, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
-    
+
     if(myRank == ROOT) {
         //printf("Result\n");
         //print_mat(U, max_I, max_J);
         //output_mat(U, max_I, max_J);
-        printf("Elapsed time: %.3f seconds\n", ((double) (end_time - start_time)) / CLOCKS_PER_SEC);
+        printf("%d %d %d %.2f\n", max_I, max_J, max_T, ((double) (end_time - start_time)) / CLOCKS_PER_SEC);
         free(U);
     }
+    
     free(recv_top_row);
     free(recv_bottom_row);
     free(myBand);
