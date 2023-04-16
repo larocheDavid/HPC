@@ -22,18 +22,17 @@ def plot_speedup(data, N, M, T):
 		speedup_sd.append(parallel_time_sd)
 		
 	
-	print(speedup_sd)
-	
 	plt.plot(nCPUS, nCPUS, '--', color='grey', label='ideal speedup')
 	plt.plot(nCPUS, speedup, '.-', color='blue', label='speedup')
 	plt.errorbar(nCPUS, speedup, yerr=speedup_sd, color='blue', fmt='none', capsize=3, label='error')
-
+	plt.xticks(nCPUS, nCPUS)
 	plt.xlabel('Number of CPUs')
 	plt.ylabel('Speedup')
-	plt.title("Data (N={}, M={}, T={})".format(N, M, T))
-
+	plt.title("Parameters: N={}, M={}, T={}".format(N, M, T))
 	plt.legend()
+	plt.savefig("../figures/speedup_{}_{}_{}.png".format(N, M, T))
 	plt.show()
+	
 
 
 N = 1000

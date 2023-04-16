@@ -8,7 +8,7 @@ Nous avons divisé l’espace en lignes par le nombre de processus, lorsque p ne
 
 Le tableau ci-dessus démontre une divison d’un domaine non divisible par p par trois processus représenté par le chiffre correspondant.
 
-L'application du stencil dans notre problème nécessite les valeurs adjacentes Nord, Sud, Est Ouest. Pour cela, lors de la division de l'espace pour chaque processus (scatterv), nous avons dupliqué les lignes adjacentes aux processus voisins.
+L'application du stencil dans notre problème nécessite les valeurs adjacentes Nord, Sud, Est Ouest. Pour cela, lors de la division de l'espace pour chaque processus (scatterv), nous avons dupliqué les lignes adjacentes au processus voisins.
 
 Voici le découpage par processus concerné:
 Processus 0:
@@ -35,12 +35,13 @@ Nous avons choisis un même volume de données de 10¹¹  (N * M * T). Cela perm
 
 ###### Figure 1
 
-<img src="figures/Data_N10.png" alt="Alt Text" style="zoom: 80%;" />
+<img src="figures/speedup_10000_1000_10000.png" alt="Alt Text" style="zoom: 80%;" />
+
 ###### Figure 2
-<img src="figures/Data_M10.png" alt="Alt Text" style="zoom: 80%;" />
+<img src="figures/speedup_1000_10000_10000.png" alt="Alt Text" style="zoom: 80%;" />
 
 ###### Figure 3
-<img src="figures/Data_T10.png" alt="Alt Text" style="zoom:80%;" />
+<img src="figures/speedup_1000_1000_100000.png" alt="Alt Text" style="zoom:80%;" />
 
 #### Analyse:
 
