@@ -2,11 +2,11 @@
 
 
 #### Figure 1
-<img src="Data_N10.png" alt="Alt Text" style="zoom: 80%;" />
+<img src="figures/Data_N10.png" alt="Alt Text" style="zoom: 80%;" />
 #### Figure 2
-<img src="Data_M10.png" alt="Alt Text" style="zoom: 80%;" />
+<img src="figures/Data_M10.png" alt="Alt Text" style="zoom: 80%;" />
 #### Figure 3
-<img src="Data_T10.png" alt="Alt Text" style="zoom:80%;" />
+<img src="figures/Data_T10.png" alt="Alt Text" style="zoom:80%;" />
 
 ##### Méthode:
 
@@ -18,5 +18,9 @@ De plus, nous pouvons comparer plus rigoureusement l'influence des paramètres m
 
 ##### Analyse:
 
-​	Nous observons un speedup (Ts/Tp) très performant, dépassant à certains endroits le speedup idéal (fig. 2, fig. 3). Ceci est étrange car la loi d'Amdahl définit le speedup ideal comme étant un maximum et donc physiquement infranchissable.
+​	Nous observons un speedup (Ts/Tp) très performant, s'approchant du speedup ideal pour les figures 1 et 2. 
+
+Le speedup de la figure 3 dépasse le speedup idéal pour des valeurs CPU de 4 et 8. Ceci est étrange car la loi d'Amdahl définit le speedup ideal comme étant un maximum et donc physiquement infranchissable.
+
+La courbe infléchit rapidement ce qui serait expliquable par l'overhead de communication.
 
