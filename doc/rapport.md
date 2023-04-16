@@ -2,13 +2,13 @@
 
 ### Stratégie de parallélisation
 
-<img src="figures/tab1.png" alt="Alt Text" style="zoom: 80%;" />
-
 Nous avons divisé l’espace en lignes par le nombre de processus, lorsque p ne divise pas n, les lignes restantes sont distribuées à partir du rang 0.
+
+<img src="figures/tab1.png" alt="Alt Text" style="zoom: 80%;" />
 
 Le tableau ci-dessus démontre une divison d’un domaine non divisible par p par trois processus représenté par le chiffre correspondant.
 
-L'application du stencil dans notre problème nécessite les valeurs adjacentes Nord, Sud, Est Ouest. Pour cela, lors de la division de l'espace pour chaque processus (scatterv), nous avons dupliqué les lignes adjacentes au processus voisins.
+L'application du stencil dans notre problème nécessite les valeurs adjacentes Nord, Sud, Est Ouest. Pour cela, lors de la division de l'espace pour chaque processus (scatterv), nous avons dupliqué les lignes adjacentes aux processus voisins.
 
 Voici le découpage par processus concerné:
 Processus 0:

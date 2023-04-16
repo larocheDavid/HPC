@@ -15,15 +15,18 @@ def plot_speedup(data, N, M, T):
 	speedup_sd = []
 	for n in nCPUS:
 		parallel_time = np.array([row for row in filtered_data if row[0] == n])
-		mean_parallel_time = np.mean(parallel_time[:,4])
-		speedup.append(mean_sequ_time/mean_parallel_time)
+		speedup_parallel = mean_sequ_time/parallel_time
+		speedup.append(np.mean(speedup_parallel[:,4]))
 		
-		parallel_time_sd = np.sd(parallel_time)
+		parallel_time_sd = np.std(speedup_parallel[:,4])
 		speedup_sd.append(parallel_time_sd)
 		
-
+	
+	print(speedup_sd)
+	
 	plt.plot(nCPUS, nCPUS, '--', color='grey', label='ideal speedup')
-	plt.plot(nCPUS, speedup, 'x-', color='red', label='speedup')
+	plt.plot(nCPUS, speedup, '.-', color='blue', label='speedup')
+	plt.errorbar(nCPUS, speedup, yerr=speedup_sd, color='blue', fmt='none', capsize=3, label='error')
 
 	plt.xlabel('Number of CPUs')
 	plt.ylabel('Speedup')

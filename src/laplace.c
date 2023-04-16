@@ -85,7 +85,7 @@ void compute_scatterv_params(int *myRows, int *sendcounts, int* displ, int nProc
         if (rank == ROOT) {
             displ[ROOT] = 0;
         }
-        else displ[rank] = displ[rank-1] + sendcounts[rank-1] -max_J * 2;
+        else displ[rank] = displ[rank-1] + sendcounts[rank-1] -max_J*2;
     }
 }
 
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
     double *recv_top_row = malloc(max_J* sizeof(double)); 
     double *recv_bottom_row = malloc(max_J* sizeof(double));
 
-    time_t start_time = time(NULL);
+    //time_t start_time = time(NULL);
     for(int t=0; t<max_T; t++) {
 
         mat_evol(myBand, myRows[myRank], max_J); // compute band from all processes before communication
@@ -206,14 +206,13 @@ int main(int argc, char** argv) {
             MPI_Barrier(MPI_COMM_WORLD);
         }
     }
-    time_t end_time = time(NULL);
+    //time_t end_time = time(NULL);
 
     MPI_Gatherv(myBand, sendcounts[myRank], MPI_DOUBLE, U, sendcounts, displs, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
 
     if(myRank == ROOT) {
-        //printf("Result\n");
-        //print_mat(U, max_I, max_J);
         output_mat(U, max_I, max_J);
+        //print_mat(U, max_I, max_J);
         //printf("%d %d %d %d %.2f\n", nProc, max_I, max_J, max_T, ((double) (end_time - start_time)));
         free(U);
     }
