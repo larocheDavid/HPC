@@ -79,13 +79,15 @@ void get_band_sz(int* band_sz, int nProc, int size) {
 
 void compute_scatterv_params(int *myRows, int *sendcounts, int* displ, int nProc, int max_J) {
 
-    for (int rank = 0; rank < nProc; rank++) { 
+    for (int rank = 0; rank < nProc; rank++) {
         sendcounts[rank] =  myRows[rank] * max_J;
 
         if (rank == ROOT) {
             displ[ROOT] = 0;
         }
         else displ[rank] = displ[rank-1] + sendcounts[rank-1] -max_J*2;
+
+        printf("rank %d, band_sz %d, displ %d \n", rank, myRows[rank], displ[rank]);
     }
 }
 
@@ -148,7 +150,7 @@ int main(int argc, char** argv) {
     if(myRank == ROOT) { // Root create grid
         U = calloc(max_I*max_J, sizeof(double));
         init_temp(U, max_I, max_J);
-        //print_mat_ref(max_I, max_J, max_T);
+        print_mat_ref(max_I, max_J, max_T);
     }
     
     int myRows[nProc];
@@ -211,8 +213,8 @@ int main(int argc, char** argv) {
     MPI_Gatherv(myBand, sendcounts[myRank], MPI_DOUBLE, U, sendcounts, displs, MPI_DOUBLE, ROOT, MPI_COMM_WORLD);
 
     if(myRank == ROOT) {
-        output_mat(U, max_I, max_J);
-        //print_mat(U, max_I, max_J);
+        //output_mat(U, max_I, max_J);
+        print_mat(U, max_I, max_J);
         //printf("%d %d %d %d %.2f\n", nProc, max_I, max_J, max_T, ((double) (end_time - start_time)));
         free(U);
     }

@@ -21,19 +21,21 @@ def plot_speedup(data, N, M, T):
 		parallel_time_sd = np.std(speedup_parallel[:,4])
 		speedup_sd.append(parallel_time_sd)
 		
+		
 	
-	plt.plot(nCPUS, nCPUS, '--', color='grey', label='ideal speedup')
+	
+	plt.plot(np.array(filtered_data)[:,0], (mean_sequ_time/np.array(filtered_data)[:,4]), '.', color='red', label='speedup')
+	#plt.plot(nCPUS, nCPUS, '--', color='grey', label='ideal speedup')
 	plt.plot(nCPUS, speedup, '.-', color='blue', label='speedup')
 	plt.errorbar(nCPUS, speedup, yerr=speedup_sd, color='blue', fmt='none', capsize=3, label='error')
+	plt.bar(nCPUS, speedup, yerr=speedup_sd, color='green', fmt='none', capsize=3, label='error')
 	plt.xticks(nCPUS, nCPUS)
 	plt.xlabel('Number of CPUs')
 	plt.ylabel('Speedup')
 	plt.title("Parameters: N={}, M={}, T={}".format(N, M, T))
 	plt.legend()
-	plt.savefig("../figures/speedup_{}_{}_{}.png".format(N, M, T))
+	#plt.savefig("../figures/speedup_{}_{}_{}.png".format(N, M, T))
 	plt.show()
-	
-
 
 N = 1000
 M = 1000
